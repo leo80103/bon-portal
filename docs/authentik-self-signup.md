@@ -35,9 +35,10 @@
 
 **登入頁**:`primary-login-identification` → 註冊流程 = `primary-signup`。
 
-> ⚠️ **目前正式環境已經開放註冊,但下面的 1(重複 email)和 2(擋機器人)還沒做。**
-> 在那之前,既有的 email 可能被註冊出第二個帳號,機器人也能大量申請、用光寄信額度。
-> 如果短期內做不完,先把上面的「註冊流程」清空。
+> ⚠️ **目前正式環境已經開放註冊,但下面的 1(重複 email)還沒做。**
+> 在那之前,既有的 email 可能被註冊出第二個帳號。如果短期內做不完,先把上面的「註冊流程」清空。
+>
+> 5(擋機器人)暫不做,接受機器人可能大量申請、用光寄信額度的風險;觀察到異常再補(見 5 的「什麼時候該做」)。
 
 ## 待驗證
 
@@ -52,7 +53,10 @@
 
 # 接下來的計畫
 
-依急迫程度排序。1、2 是開放註冊後就有實際風險的,先做。
+**必做:1、2、3** —— 不做的話,同一個 email 會長出兩個帳號,或帳號狀態判斷錯誤。
+三項都是「Expression Policy 綁在附加上」,可以一起做、一起驗。
+
+**選用:4、5** —— 目前不做,有需要再補。
 
 ## 1. 重複 email
 
@@ -125,33 +129,11 @@ return True   # 一定回 True:回 False 會讓這個階段被跳過,空白卡�
   判斷,未實測
 - 驗證:同一個 email 註冊兩次 → 使用者清單**只有一筆** → 收到兩封信,點**任一封**都能設密碼
 
-## 2. 擋機器人
-
-每一次申請都會寄一封信。Workspace 每天約 2,000 封上限,機器人一次填幾千次就會用光,
-連忘記密碼的信都寄不出去;大量退信也會傷害網域信譽。**防線要在寄信之前。**
-
-**2-a Captcha 階段**(主要防線)
-
-1. 申請 captcha 金鑰。建議 **Cloudflare Turnstile**(免費、多數情況不用使用者點圖片)
-2. **流程與階段 → 階段 → 建立 → Captcha Stage**:名稱 `primary-signup-captcha`,填 site key / secret key
-   ⚠️ Turnstile 需要在 Captcha 階段裡填對應的 JS URL 與驗證 API URL,建立時對照 Authentik 文件
-3. 附加到 `primary-signup`,**順序 15**(填完 email 之後、建空白卡之前)
-
-**2-b 限制頻率**(輔助)
-
-- Email 階段本身有 `Account Recovery Max Attempts` / `Cache Timeout`(預設 5 分鐘 5 次),
-  能擋「對同一個 email 一直重寄」,擋不住「幾千個不同 email」
-- ⚠️ Authentik 的名譽分數主要記錄登入失敗,不太適合限制註冊頻率。如果 Authentik 前面是
-  Cloudflare,用 Cloudflare 的 Rate Limiting 規則限制 `/if/flow/primary-signup/` 與
-  `/api/v3/flows/executor/primary-signup/` 的請求頻率更直接
-
-**驗證**:無痕視窗註冊時出現 captcha;captcha 沒過就不會寄信、也不會建空白卡。
-
-## 3. 開通後移出「申請中」並加上永久標記
+## 2. 開通後移出「申請中」並加上永久標記
 
 **問題**:路徑在**建立**時決定,開通後不會自動改。帳號一直留在 `users/signup-pending` 的話:
 
-- 之後被管理員停用,看起來就跟空白卡一樣 → 1-a 會讓它重新註冊、4 會讓 Google 重新打開它
+- 之後被管理員停用,看起來就跟空白卡一樣 → 1-a 會讓它重新註冊、3 會讓 Google 重新打開它
 - 「申請中的空白卡有幾張」這個觀察指標失準
 
 **做法**:新增政策 `primary-signup-finalize`,綁在流程 `primary-signup` **順序 60(`primary-signup-login`)
@@ -173,7 +155,7 @@ return True
 
 **驗證**:註冊完成後,帳號路徑變成 `users`、屬性有 `signup_source: email`。
 
-## 4. Google 登入碰到空白卡時直接開通
+## 3. Google 登入碰到空白卡時直接開通
 
 **問題**(artifact 故事四):Google Source 的比對模式是「連結到相同 email 的使用者」。
 使用者申請到一半改按 Google,Authentik 會把 Google 連到停用的空白卡,然後因為帳號停用而登入失敗。
@@ -208,9 +190,9 @@ return True
 **驗證**:新 email 先填註冊(不點信)→ 改按 Google 登入 → 成功登入,使用者清單仍只有一筆,
 已啟用、路徑 `users`;另拿一個**被停用的一般帳號**按 Google → 仍然登不進去。
 
-## 5. 清理空白卡
+## 4. 清理空白卡(選用)
 
-空白卡沒有密碼、不會被冒用,1-b 和 4 也確保它不會擋住本人,所以**不急著刪**。
+空白卡沒有密碼、不會被冒用,1-b 和 3 也確保它不會擋住本人,所以**不急著刪**。
 數量突然暴增可以當作機器人的警訊。保留 7~30 天後清除。
 
 **查看數量**:**使用者目錄 → 使用者** → 左側 `users/signup-pending`。
@@ -233,6 +215,31 @@ qs.delete()
 
 - ⚠️ `ak shell -c` 是否支援、`date_joined` 是否為建立時間,執行前先把 `qs.delete()` 拿掉試跑一次
 - 執行位置:跑 Authentik 的主機、compose 檔所在資料夾;用 cron 每天一次
+
+## 5. 擋機器人(選用)
+
+每一次申請都會寄一封信。Workspace 每天約 2,000 封上限,機器人一次填幾千次就會用光,
+連忘記密碼的信都寄不出去;大量退信也會傷害網域信譽。**防線要在寄信之前。**
+
+**什麼時候該做**:`users/signup-pending` 的數量異常增加、事件裡出現大量同來源 IP 的申請,
+或收到寄信額度/退信的警告。在那之前先不做。
+
+**5-a Captcha 階段**(主要防線)
+
+1. 申請 captcha 金鑰。建議 **Cloudflare Turnstile**(免費、多數情況不用使用者點圖片)
+2. **流程與階段 → 階段 → 建立 → Captcha Stage**:名稱 `primary-signup-captcha`,填 site key / secret key
+   ⚠️ Turnstile 需要在 Captcha 階段裡填對應的 JS URL 與驗證 API URL,建立時對照 Authentik 文件
+3. 附加到 `primary-signup`,**順序 15**(填完 email 之後、建空白卡之前)
+
+**5-b 限制頻率**(輔助)
+
+- Email 階段本身有 `Account Recovery Max Attempts` / `Cache Timeout`(預設 5 分鐘 5 次),
+  能擋「對同一個 email 一直重寄」,擋不住「幾千個不同 email」
+- ⚠️ Authentik 的名譽分數主要記錄登入失敗,不太適合限制註冊頻率。如果 Authentik 前面是
+  Cloudflare,用 Cloudflare 的 Rate Limiting 規則限制 `/if/flow/primary-signup/` 與
+  `/api/v3/flows/executor/primary-signup/` 的請求頻率更直接
+
+**驗證**:無痕視窗註冊時出現 captcha;captcha 沒過就不會寄信、也不會建空白卡。
 
 ---
 
