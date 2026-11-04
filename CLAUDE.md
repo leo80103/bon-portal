@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **不是**內部員工工具,也**不是**行銷網站(行銷另有站點)。
 
-帳號有三種來源:業務簽約後在 Authentik 預先建立、客戶第一次用 Google 登入時自動建立、客戶自行用 email + 密碼註冊(點過確認信才建立帳號)。**一個 email 只對應一個帳號** —— 不管用密碼還是 Google 登入,都要進到同一個 user。規則與理由見 `docs/authentik-google-login.md`。忘記密碼已設定(`docs/authentik-password-recovery.md`,寄信見 `docs/authentik-email.md`);email 註冊的 flow 尚未實作。
+帳號有三種來源:業務簽約後在 Authentik 預先建立、客戶第一次用 Google 登入時自動建立、客戶自行用 email + 密碼註冊(點過確認信才開通帳號)。**一個 email 只對應一個帳號** —— 不管用密碼還是 Google 登入,都要進到同一個 user。規則與理由見 `docs/authentik-google-login.md`。忘記密碼已設定(`docs/authentik-password-recovery.md`,寄信見 `docs/authentik-email.md`);email 自行註冊也已設定(`docs/authentik-self-signup.md`),填 email 時先建停用、沒有密碼的申請中帳號,點了確認信才能設密碼。
 
 不管帳號從哪裡來,**授權只來自 Authentik 的群組**,自動建立或自行註冊的帳號一開始沒有任何產品。線上購買後怎麼把群組給上去尚未定案(等後端分工),目前仍由我們在後台設定。
 
